@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: longitude-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: longitude
+      POSTGRES_PASSWORD: longitude
+      POSTGRES_DB: longitude
+    ports:
+      # 5433 on the host so it doesn't clash with other local Postgres servers on 5432
+      - "5433:5432"
+    volumes:
+      - longitude-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U longitude -d longitude"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  longitude-pg:

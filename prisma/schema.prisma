@@ -1,0 +1,176 @@
+// Longitude — tour & travel data model.
+// Run `npm run db:setup` after starting Postgres to apply migrations and seed.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Destination {
+  id              String        @id @default(cuid())
+  slug            String        @unique
+  name            String
+  country         String
+  region          String
+  tagline         String
+  summary         String
+  latitude        Float
+  longitude       Float
+  /// Approximate ground height above the WGS84 ellipsoid, in metres.
+  elevation       Float
+  timezone        String
+  bestSeason      String
+  heroImage       String
+  heroImageCredit String
+  /// Camera framing used when the 3D scene arrives at the destination.
+  cameraHeading   Float
+  cameraPitch     Float
+  cameraRange     Float
+  sortOrder       Int           @default(0)
+  attractions     Attraction[]
+  packages        TourPackage[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model Attraction {
+  id            String      @id @default(cuid())
+  slug          String      @unique
+  destinationId String
+  destination   Destination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+  name          String
+  category      String
+  summary       String
+  description   String
+  latitude      Float
+  longitude     Float
+  /// Ground height above the ellipsoid, in metres.
+  elevation     Float
+  /// Height of the camera's look-at point above the ellipsoid (e.g. mid-height of a tower).
+  focusHeight   Float
+  viewRange     Float
+  viewHeading   Float
+  viewPitch     Float
+  imageUrl      String
+  imageCredit   String
+  bestTime      String
+  visitDuration String
+  sortOrder     Int         @default(0)
+
+  @@index([destinationId])
+}
+
+model TourPackage {
+  id               String         @id @default(cuid())
+  slug             String         @unique
+  destinationId    String
+  destination      Destination    @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+  name             String
+  summary          String
+  description      String
+  durationDays     Int
+  priceInr         Int
+  groupSize        String
+  pace             String
+  images           String[]
+  highlights       String[]
+  activities       String[]
+  includes         String[]
+  excludes         String[]
+  hotelName        String
+  hotelStars       Int
+  hotelArea        String
+  hotelDescription String
+  hotelAmenities   String[]
+  featured         Boolean        @default(false)
+  sortOrder        Int            @default(0)
+  itinerary        ItineraryDay[]
+  bookings         Booking[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([destinationId])
+}
+
+model ItineraryDay {
+  id              String      @id @default(cuid())
+  packageId       String
+  package         TourPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  day             Int
+  title           String
+  description     String
+  attractionSlugs String[]
+
+  @@unique([packageId, day])
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+model Booking {
+  id           String        @id @default(cuid())
+  reference    String        @unique
+  packageId    String
+  package      TourPackage   @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  userId       String?
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  leadName     String
+  email        String
+  phone        String
+  travelers    Int
+  travelDate   DateTime      @db.Date
+  originCity   String?
+  notes        String?
+  unitPriceInr Int
+  taxesInr     Int
+  totalInr     Int
+  status       BookingStatus @default(CONFIRMED)
+  createdAt    DateTime      @default(now())
+
+  @@index([email])
+  @@index([userId])
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String
+  passwordHash    String
+  /// When the traveller last proved they own the address with an emailed code.
+  emailVerifiedAt DateTime?
+  bookings        Booking[]
+  createdAt       DateTime  @default(now())
+}
+
+enum OtpPurpose {
+  REGISTER
+  LOGIN
+}
+
+/// A one-time code sent by email. REGISTER: the account is only created once
+/// the code is entered. LOGIN: the second step of signing in, after the password.
+model OtpChallenge {
+  /// Random and unguessable: the browser holds it to verify or resend.
+  id         String     @id
+  email      String
+  purpose    OtpPurpose
+  /// HMAC of the code; the code itself is never stored.
+  codeHash   String
+  /// REGISTER: { name, passwordHash }. LOGIN: { userId }.
+  payload    Json
+  attempts   Int        @default(0)
+  sends      Int        @default(1)
+  expiresAt  DateTime
+  lastSentAt DateTime   @default(now())
+  consumedAt DateTime?
+  createdAt  DateTime   @default(now())
+
+  @@index([email, createdAt])
+}
